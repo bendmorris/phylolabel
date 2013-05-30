@@ -73,6 +73,9 @@ for sp in tree_species:
         group_root = tree.common_ancestor(tree_fellows)
         if not group_root.name:
             group_root.name = parent.name
+        else:
+            # TODO: if the node is already labeled, split it into two nodes
+            pass
         
         done.add(parent.name)
         
