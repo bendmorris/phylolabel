@@ -10,6 +10,7 @@ Usage:
 
     python phylolabel.py tree_file taxonomy_file 
                          [tree_format] [taxonomy_format] [output_format]
+                         [group]
 
 Output will be printed to stdout.
 '''
@@ -24,12 +25,26 @@ def convert_labels(t):
         if x.name:
             x.name = x.name.replace('_', ' ')
 
-def label_tree(tree, taxonomy):
-    '''Add taxonomic labels to phylogeny. Operates on the phylogeny in-place.'''
+def label_tree(tree, taxonomy, group=None):
+    '''Add taxonomic labels to phylogeny. Operates on the phylogeny in-place.
+    Returns a set of labels common to both the tree and taxonomy.
+    
+    group, if provided, should be the name of a node in the taxonomy; this 
+    will be used to take a subset of the taxonomy, avoiding taxonomic homonym 
+    issues.
+    '''
 
     # standardize labels
     convert_labels(tree)
     convert_labels(taxonomy)
+    
+    # subset the taxnoomy if necessary
+    if group:
+        top_node = taxonomy.find_any(group)
+        if top_node:
+            if hasattr(top_node, '_parent'):
+                top_node._parent.clades.remove(top_node)
+            taxonomy = bp.BaseTree.Tree(root=top_node)
 
     # cache labels
     tree.cache_labels()
@@ -47,7 +62,7 @@ def label_tree(tree, taxonomy):
         if x:
             tree_to_tax[sp] = x
             tax_to_tree[x] = sp
-
+    
     # walk through species of phylogeny, marking the common ancestors of each
     # taxonomic grouping they're a member of
     done = set()
@@ -63,23 +78,61 @@ def label_tree(tree, taxonomy):
             fellows = parent.find_elements()
             tree_fellows = (tax_to_tree[x] for x in fellows if x in tax_to_tree)
             group_root = tree.common_ancestor(tree_fellows)
+            
             if not group_root.name:
+                # the node is currently unlabeled, so label it
                 group_root.name = parent.name
+
             else:
+                # the node was already labeled, so split it into two nodes
                 new_clade = bp.BaseTree.Clade(name=parent.name, branch_length=0)
+                
+                # how many nodes are there in the tree already separated by
+                # branches of length 0?
+                old_otus = [taxonomy.find_any(group_root.name)]
+                for x in group_root.get_parents(False):
+                    if x.branch_length == 0 and x.name:
+                        old_otus.append(taxonomy.find_any(x.name))
+                    else:
+                        break
+                new_otu = parent
+                
+                placed = False
+                for (n, old_otu) in enumerate(old_otus):
+                    if old_otu in new_otu.get_parents(False):
+                        # existing node should be parent of new node
+                        for _ in range(n):
+                            group_root = group_root._parent
+                        
+                        for child in [x for x in group_root.clades]:
+                            group_root.clades.remove(child)
+                            new_clade.clades.append(child)
+                            
+                        group_root.clades.append(new_clade)
+                        placed = True
+                        break
+                
+                if not placed:
+                    # new node should be parent of existing nodes
+                    for x in group_root.get_parents(False):
+                        if x.branch_length == 0 and x.name:
+                            group_root = x
+                        else: break
 
-                if group_root is tree.root:
-                    tree.root = new_clade
-                else:
-                    old_parent = group_root._parent
-                    old_parent.clades.remove(group_root)
-                    old_parent.clades.append(new_clade)
+                    if group_root is tree.root:
+                        tree.root = new_clade
+                    else:
+                        old_parent = group_root._parent
+                        old_parent.clades.remove(group_root)
+                        old_parent.clades.append(new_clade)
 
-                new_clade.clades.append(group_root)
+                    new_clade.clades.append(group_root)
             
             done.add(parent.name)
             
         done.add(sp.name)
+
+    return done
     
     
 if __name__ == '__main__':
@@ -90,12 +143,14 @@ if __name__ == '__main__':
     except: tax_format = 'newick'
     try: output_format = sys.argv[5]
     except: output_format = 'newick'
+    try: group = sys.argv[6]
+    except: group = None
     
     # read in the tree and taxonomy
     tree = bp.read(tree_file, tree_format)
     taxonomy = bp.read(tax_file, tax_format)
     
-    label_tree(tree, taxonomy)
+    label_tree(tree, taxonomy, group=group)
     
     # write output to stdout
     print tree.format(output_format)
