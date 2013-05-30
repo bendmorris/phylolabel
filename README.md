@@ -8,6 +8,7 @@ Usage:
 
     python phylolabel.py tree_file taxonomy_file 
                          [tree_format] [taxonomy_format] [output_format]
+                         [group]
 
 Output will be printed to stdout.
 
