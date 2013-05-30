@@ -17,13 +17,6 @@ import Bio.Phylo as bp
 from time import time
 import sys
 
-tree_file, tax_file = sys.argv[1:3]
-try: tree_format = sys.argv[3]
-except: tree_format = 'newick'
-try: tax_format = sys.argv[4]
-except: tax_format = 'newick'
-try: output_format = sys.argv[5]
-except: output_format = 'newick'
 
 def convert_labels(t):
     '''Replace underscores with spaces in taxonomy labels for consistency.'''
@@ -31,55 +24,70 @@ def convert_labels(t):
         if x.name:
             x.name = x.name.replace('_', ' ')
 
-# read in the tree and taxonomy
-tree = bp.read(tree_file, tree_format)
-taxonomy = bp.read(tax_file, tax_format)
+def label_tree(tree, taxonomy):
+    '''Add taxonomic labels to phylogeny. Operates on the phylogeny in-place.'''
 
-# standardize labels
-convert_labels(tree)
-convert_labels(taxonomy)
+    # standardize labels
+    convert_labels(tree)
+    convert_labels(taxonomy)
 
-# cache labels
-tree.cache_labels()
-taxonomy.cache_labels()
+    # cache labels
+    tree.cache_labels()
+    taxonomy.cache_labels()
 
-# get all named terminal nodes from phylogeny
-tree_species = [sp for sp in tree.get_terminals() if sp.name]
+    # get all named terminal nodes from phylogeny
+    tree_species = [sp for sp in tree.get_terminals() if sp.name]
 
-# create two dictionaries, mapping the nodes from the phylogeny to the taxonomy
-# and vice versa
-tax_to_tree = {}
-tree_to_tax = {}
-for sp in tree_species:
-    x = taxonomy.find_any(sp.name)
-    if x:
-        tree_to_tax[sp] = x
-        tax_to_tree[x] = sp
+    # create two dictionaries, mapping the nodes from the phylogeny to the taxonomy
+    # and vice versa
+    tax_to_tree = {}
+    tree_to_tax = {}
+    for sp in tree_species:
+        x = taxonomy.find_any(sp.name)
+        if x:
+            tree_to_tax[sp] = x
+            tax_to_tree[x] = sp
 
-# walk through species of phylogeny, marking the common ancestors of each
-# taxonomic grouping they're a member of
-done = set()
-for sp in tree_species:
-    if not sp in tree_to_tax: continue
-    if sp.name in done: continue
+    # walk through species of phylogeny, marking the common ancestors of each
+    # taxonomic grouping they're a member of
+    done = set()
+    for sp in tree_species:
+        if not sp in tree_to_tax: continue
+        if sp.name in done: continue
+        
+        tax_sp = tree_to_tax[sp]
+        tax_parents = tax_sp.get_parents(False)
+        for parent in tax_parents:
+            if parent.name in done: continue
+            
+            fellows = parent.find_elements()
+            tree_fellows = (tax_to_tree[x] for x in fellows if x in tax_to_tree)
+            group_root = tree.common_ancestor(tree_fellows)
+            if not group_root.name:
+                group_root.name = parent.name
+            else:
+                # TODO: if the node is already labeled, split it into two nodes
+                pass
+            
+            done.add(parent.name)
+            
+        done.add(sp.name)
     
-    tax_sp = tree_to_tax[sp]
-    tax_parents = tax_sp.get_parents(False)
-    for parent in tax_parents:
-        if parent.name in done: continue
-        
-        fellows = parent.find_elements()
-        tree_fellows = (tax_to_tree[x] for x in fellows if x in tax_to_tree)
-        group_root = tree.common_ancestor(tree_fellows)
-        if not group_root.name:
-            group_root.name = parent.name
-        else:
-            # TODO: if the node is already labeled, split it into two nodes
-            pass
-        
-        done.add(parent.name)
-        
-    done.add(sp.name)
-
-# write output to stdout
-print tree.format(output_format)
+    
+if __name__ == '__main__':
+    tree_file, tax_file = sys.argv[1:3]
+    try: tree_format = sys.argv[3]
+    except: tree_format = 'newick'
+    try: tax_format = sys.argv[4]
+    except: tax_format = 'newick'
+    try: output_format = sys.argv[5]
+    except: output_format = 'newick'
+    
+    # read in the tree and taxonomy
+    tree = bp.read(tree_file, tree_format)
+    taxonomy = bp.read(tax_file, tax_format)
+    
+    label_tree(tree, taxonomy)
+    
+    # write output to stdout
+    print tree.format(output_format)
