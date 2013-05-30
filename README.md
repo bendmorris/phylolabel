@@ -10,3 +10,8 @@ Usage:
                          [tree_format] [taxonomy_format] [output_format]
 
 Output will be printed to stdout.
+
+Note: this currently relies on functionality in my development fork of BioPython 
+which hasn't been pulled into the main branch yet. You can get my fork here:
+
+    https://github.com/bendmorris/biopython
