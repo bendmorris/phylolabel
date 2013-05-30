@@ -66,8 +66,16 @@ def label_tree(tree, taxonomy):
             if not group_root.name:
                 group_root.name = parent.name
             else:
-                # TODO: if the node is already labeled, split it into two nodes
-                pass
+                new_clade = bp.BaseTree.Clade(name=parent.name, branch_length=0)
+
+                if group_root is tree.root:
+                    tree.root = new_clade
+                else:
+                    old_parent = group_root._parent
+                    old_parent.clades.remove(group_root)
+                    old_parent.clades.append(new_clade)
+
+                new_clade.clades.append(group_root)
             
             done.add(parent.name)
             
