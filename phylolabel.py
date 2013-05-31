@@ -46,9 +46,9 @@ def label_tree(tree, taxonomy, group=None):
                 top_node._parent.clades.remove(top_node)
             taxonomy = bp.BaseTree.Tree(root=top_node)
 
-    # cache labels
-    tree.cache_labels()
-    taxonomy.cache_labels()
+    # index labels
+    tree.index_labels()
+    taxonomy.index_labels()
 
     # get all named terminal nodes from phylogeny
     tree_species = [sp for sp in tree.get_terminals() if sp.name]
