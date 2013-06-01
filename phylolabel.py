@@ -6,17 +6,9 @@ taxa in the phylogeny.
 Both the phylogeny and the taxonomy should be trees in a format supported by
 BioPython.
 
-Usage:
-
-    python phylolabel.py tree_file taxonomy_file 
-                         [tree_format] [taxonomy_format] [output_format]
-                         [group]
-
-Output will be printed to stdout.
+For help on usage, run `python phylolabel.py -h`
 '''
 import Bio.Phylo as bp
-from time import time
-import sys
 
 
 def convert_labels(t):
@@ -25,59 +17,59 @@ def convert_labels(t):
         if x.name:
             x.name = x.name.replace('_', ' ')
 
-def label_tree(tree, taxonomy, group=None):
+def label_tree(phylogeny, taxonomy, tax_root=None):
     '''Add taxonomic labels to phylogeny. Operates on the phylogeny in-place.
     Returns a set of labels common to both the tree and taxonomy.
     
-    group, if provided, should be the name of a node in the taxonomy; this 
+    tax_root, if provided, should be the name of a node in the taxonomy; this 
     will be used to take a subset of the taxonomy, avoiding taxonomic homonym 
     issues.
     '''
 
     # standardize labels
-    convert_labels(tree)
+    convert_labels(phylogeny)
     convert_labels(taxonomy)
     
     # subset the taxnoomy if necessary
-    if group:
-        top_node = taxonomy.find_any(group)
+    if tax_root:
+        top_node = taxonomy.find_any(tax_root)
         if top_node:
             if hasattr(top_node, '_parent'):
                 top_node._parent.clades.remove(top_node)
             taxonomy = bp.BaseTree.Tree(root=top_node)
 
     # index labels
-    tree.index_labels()
+    phylogeny.index_labels()
     taxonomy.index_labels()
 
     # get all named terminal nodes from phylogeny
-    tree_species = [sp for sp in tree.get_terminals() if sp.name]
+    phylogeny_species = [sp for sp in phylogeny.get_terminals() if sp.name]
 
     # create two dictionaries, mapping the nodes from the phylogeny to the taxonomy
     # and vice versa
-    tax_to_tree = {}
-    tree_to_tax = {}
-    for sp in tree_species:
+    taxonomy_to_phylogeny = {}
+    phylogeny_to_taxonomy = {}
+    for sp in phylogeny_species:
         x = taxonomy.find_any(sp.name)
         if x:
-            tree_to_tax[sp] = x
-            tax_to_tree[x] = sp
+            phylogeny_to_taxonomy[sp] = x
+            taxonomy_to_phylogeny[x] = sp
     
     # walk through species of phylogeny, marking the common ancestors of each
     # taxonomic grouping they're a member of
     done = set()
-    for sp in tree_species:
-        if not sp in tree_to_tax: continue
+    for sp in phylogeny_species:
+        if not sp in phylogeny_to_taxonomy: continue
         if sp.name in done: continue
         
-        tax_sp = tree_to_tax[sp]
+        tax_sp = phylogeny_to_taxonomy[sp]
         tax_parents = tax_sp.get_parents(False)
         for parent in tax_parents:
             if parent.name in done: continue
             
             fellows = parent.find_elements()
-            tree_fellows = (tax_to_tree[x] for x in fellows if x in tax_to_tree)
-            group_root = tree.common_ancestor(tree_fellows)
+            fellows = (taxonomy_to_phylogeny[x] for x in fellows if x in taxonomy_to_phylogeny)
+            group_root = phylogeny.common_ancestor(fellows)
             
             if not group_root.name:
                 # the node is currently unlabeled, so label it
@@ -119,8 +111,8 @@ def label_tree(tree, taxonomy, group=None):
                             group_root = x
                         else: break
 
-                    if group_root is tree.root:
-                        tree.root = new_clade
+                    if group_root is phylogeny.root:
+                        phylogeny.root = new_clade
                     else:
                         old_parent = group_root._parent
                         old_parent.clades.remove(group_root)
@@ -136,21 +128,25 @@ def label_tree(tree, taxonomy, group=None):
     
     
 if __name__ == '__main__':
-    tree_file, tax_file = sys.argv[1:3]
-    try: tree_format = sys.argv[3]
-    except: tree_format = 'newick'
-    try: tax_format = sys.argv[4]
-    except: tax_format = 'newick'
-    try: output_format = sys.argv[5]
-    except: output_format = 'newick'
-    try: group = sys.argv[6]
-    except: group = None
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('phylogeny_file', help='path to the phylogeny')
+    parser.add_argument('taxonomy_file',  help='path to the taxonomy')
+    parser.add_argument('-p', '--phylogeny_format', nargs='?', default='newick',
+                        help='phylogeny format (%s)' % 
+                        (','.join(bp._io.supported_formats.keys())))
+    parser.add_argument('-t', '--taxonomy_format', nargs='?', default='newick', help='taxonomy format')
+    parser.add_argument('-o', '--output_format', nargs='?', default='newick', help='output format')
+    parser.add_argument('-r', '--root', nargs='?', default=None, help='name of OTU to use as root of taxonomy')
+
+    args = parser.parse_args()
     
     # read in the tree and taxonomy
-    tree = bp.read(tree_file, tree_format)
-    taxonomy = bp.read(tax_file, tax_format)
+    phylogeny = bp.read(args.phylogeny_file, args.phylogeny_format)
+    taxonomy = bp.read(args.taxonomy_file, args.taxonomy_format)
     
-    label_tree(tree, taxonomy, group=group)
+    label_tree(phylogeny, taxonomy, tax_root=args.root)
     
     # write output to stdout
-    print tree.format(output_format)
+    print phylogeny.format(args.output_format)
