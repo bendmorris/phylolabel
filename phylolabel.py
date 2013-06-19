@@ -39,8 +39,8 @@ def label_tree(phylogeny, taxonomy, tax_root=None):
             taxonomy = bp.BaseTree.Tree(root=top_node)
 
     # index labels
-    phylogeny.index_labels()
-    taxonomy.index_labels()
+    if not hasattr(phylogeny, '_label_index'): phylogeny.index_labels()
+    if not hasattr(taxonomy, '_label_index'): taxonomy.index_labels()
 
     # get all named terminal nodes from phylogeny
     phylogeny_species = [sp for sp in phylogeny.get_terminals() if sp.name]
