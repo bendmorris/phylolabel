@@ -14,7 +14,7 @@ setup(name='phylolabel',
                 },
       entry_points={
         'console_scripts': [
-            'treestore = phylolabel.phylolabel:main',
+            'phylolabel = phylolabel.phylolabel:main',
         ],
       },
       )
