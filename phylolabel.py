@@ -77,7 +77,7 @@ def label_tree(phylogeny, taxonomy, tax_root=None):
 
             else:
                 # the node was already labeled, so split it into two nodes
-                new_clade = bp.BaseTree.Clade(name=parent.name, branch_length=0)
+                new_clade = bp.BaseTree.Clade(name=parent.name, branch_length=None)
                 
                 # how many nodes are there in the tree already separated by
                 # branches of length 0?
